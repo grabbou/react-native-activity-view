@@ -33,9 +33,9 @@ RCT_EXPORT_MODULE()
        @"postToTencentWeibo": UIActivityTypePostToTencentWeibo,
        @"airDrop": UIActivityTypeAirDrop
     };
-    
+
     NSMutableArray *excludedActivities = [NSMutableArray new];
-    
+
     [passedKeys enumerateObjectsUsingBlock:^(NSString *activityName, NSUInteger idx, BOOL *stop) {
         NSString *activity = [activities objectForKey:activityName];
         if (!activity) {
@@ -44,8 +44,24 @@ RCT_EXPORT_MODULE()
         }
         [excludedActivities addObject:activity];
     }];
-    
+
     return excludedActivities;
+}
+
+- (NSArray*)applicationActivitiesForKeys:(NSArray*)passedKeys
+{
+    NSMutableArray *applicationActivities = [NSMutableArray new];
+
+    [passedKeys enumerateObjectsUsingBlock:^(NSString *activityName, NSUInteger idx, BOOL *stop) {
+        id customActivity = [self.bridge moduleForName:activityName];
+        if (!customActivity) {
+            RCTLogWarn(@"[ActivityView] Unknown application activity to add: %@", activityName);
+            return;
+        }
+        [applicationActivities addObject:customActivity];
+    }];
+
+    return applicationActivities;
 }
 
 RCT_EXPORT_METHOD(show:(NSDictionary *)args)
@@ -59,7 +75,7 @@ RCT_EXPORT_METHOD(show:(NSDictionary *)args)
     if (image) {
       shareImage = [UIImage imageNamed:image];
     }
-    
+
     if (imageBase64) {
       @try {
           NSData *decodedImage = [[NSData alloc] initWithBase64EncodedString:imageBase64
@@ -94,14 +110,15 @@ RCT_EXPORT_METHOD(show:(NSDictionary *)args)
         });
     }];
 }
-    
+
 - (void) showWithOptions:(NSDictionary *)args image:(UIImage *)image
 {
     NSMutableArray *shareObject = [NSMutableArray array];
     NSString *text = args[@"text"];
     NSURL *url = args[@"url"];
     NSArray *activitiesToExclude = args[@"exclude"];
-    
+    NSArray *customActivitiesToAdd = args[@"customActivities"];
+
     // Return if no args were passed
     if (!text && !url && !image) {
         RCTLogError(@"[ActivityView] You must specify a text, url, image, imageBase64 and/or imageUrl.");
@@ -111,21 +128,23 @@ RCT_EXPORT_METHOD(show:(NSDictionary *)args)
     if (text) {
         [shareObject addObject:text];
     }
-    
+
     if (url) {
         [shareObject addObject:url];
     }
-    
+
     if (image) {
         [shareObject addObject:image];
     }
-    
-    UIActivityViewController *activityView = [[UIActivityViewController alloc] initWithActivityItems:shareObject applicationActivities:nil];
-    
+
+    NSArray *applicationActivities = [self applicationActivitiesForKeys:customActivitiesToAdd];
+
+    UIActivityViewController *activityView = [[UIActivityViewController alloc] initWithActivityItems:shareObject applicationActivities:applicationActivities];
+
     activityView.excludedActivityTypes = activitiesToExclude
         ? [self excludedActivitiesForKeys:activitiesToExclude]
         : nil;
-    
+
     // Display the Activity View
     UIViewController *ctrl = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
 
